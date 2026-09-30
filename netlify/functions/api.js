@@ -57,7 +57,7 @@ function inlineCatalog() {
         capabilities: {
           chat: { defaultModel: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner', 'qwen-plus', 'qwen-vl-max', 'glm-4-plus', 'moonshot-v1-8k', 'gpt-4o-mini', 'doubao-seed-1-6-250615'] },
           vision: { defaultModel: 'qwen-vl-max', models: ['qwen-vl-max', 'glm-4v-flash', 'glm-4v-plus', 'gpt-4o-mini'] },
-          image: { defaultModel: 'doubao-seedream-3-0-t2i-250528', models: ['doubao-seedream-3-0-t2i-250528', 'qwen-image', 'gpt-image-1'] }
+          image: { defaultModel: 'cogview-3-flash', models: ['cogview-3-flash', 'qwen-image', 'gpt-image-1', 'doubao-seedream-3-0-t2i-250528'] }
         }
       },
       { id: 'dashscope-native', label: '通义万相（自备 Key）', kind: 'byok', needsKey: true, keyLabel: 'DashScope API Key',

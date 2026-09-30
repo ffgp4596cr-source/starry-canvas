@@ -81,17 +81,17 @@ window.__STARRY_INLINE__.catalog = {
       keyLabel: 'API Key',
       note: '可接入 DeepSeek / 通义千问 / 智谱 GLM / Kimi / OpenAI 等任意 OpenAI 兼容接口。静态版下「对话 / 看图反推」可浏览器直连；文生图等需后端代理的能力请在「能力路由」中分配，或运行 node server.js 完整版。',
       presets: [
+        { label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', chatModels: ['glm-4-flash', 'glm-4-plus', 'glm-4v-flash', 'glm-4v-plus'], vision: true, imageModels: ['cogview-3-flash'], free: true },
         { label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', chatModels: ['deepseek-chat', 'deepseek-reasoner'], vision: true },
         { label: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModels: ['qwen-plus', 'qwen-turbo', 'qwen-vl-max'], vision: true, imageModels: ['qwen-image'] },
-        { label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', chatModels: ['glm-4-plus', 'glm-4v-flash', 'glm-4v-plus'], vision: true },
         { label: 'Kimi', baseUrl: 'https://api.moonshot.cn/v1', chatModels: ['moonshot-v1-8k', 'moonshot-v1-32k'] },
         { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', chatModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'], vision: true, imageModels: ['dall-e-3', 'gpt-image-1'] },
         { label: '豆包（火山方舟 Seedream）', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', chatModels: ['doubao-seed-1-6-250615', 'doubao-lite-32k-250615'], vision: false, imageModels: ['doubao-seedream-3-0-t2i-250528'], imageOnly: true }
       ],
       capabilities: {
-        chat: { defaultModel: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max', 'glm-4-plus', 'glm-4v-flash', 'moonshot-v1-8k', 'gpt-4o-mini', 'gpt-4o', 'doubao-seed-1-6-250615'] },
-        vision: { defaultModel: 'qwen-vl-max', models: ['qwen-vl-max', 'glm-4v-flash', 'glm-4v-plus', 'gpt-4o-mini', 'gpt-4o'] },
-        image: { defaultModel: 'doubao-seedream-3-0-t2i-250528', models: ['doubao-seedream-3-0-t2i-250528', 'qwen-image', 'dall-e-3', 'gpt-image-1'] }
+        chat: { defaultModel: 'glm-4-flash', models: ['glm-4-flash', 'glm-4-plus', 'glm-4v-flash', 'deepseek-chat', 'deepseek-reasoner', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max', 'moonshot-v1-8k', 'gpt-4o-mini', 'gpt-4o', 'doubao-seed-1-6-250615'] },
+        vision: { defaultModel: 'glm-4v-flash', models: ['glm-4v-flash', 'glm-4v-plus', 'qwen-vl-max', 'gpt-4o-mini', 'gpt-4o'] },
+        image: { defaultModel: 'cogview-3-flash', models: ['cogview-3-flash', 'qwen-image', 'dall-e-3', 'gpt-image-1', 'doubao-seedream-3-0-t2i-250528'] }
       }
     },
     /* ---------- 自备 Key：通义万相（需后端代理） ---------- */

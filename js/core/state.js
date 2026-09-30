@@ -46,16 +46,16 @@ export const DEFAULT_SETTINGS = {
   ai: {
     routes: {
       chat: { provider: 'openai-compat', model: 'glm-4-flash' },
-      image: { provider: 'sd3-gradio', model: 'sd3-medium' },
+      image: { provider: 'openai-compat', model: 'cogview-3-flash' },
       vision: { provider: 'openai-compat', model: 'glm-4v-flash' },
-      upscale: { provider: 'local', model: 'local-upscale' },
-      matting: { provider: 'local', model: 'local-matting' },
-      video: { provider: 'local', model: 'local-video' }
+      upscale: { provider: 'openai-compat', model: '' },
+      matting: { provider: 'openai-compat', model: '' },
+      video: { provider: 'openai-compat', model: '' }
     },
     providers: {
       pollinations: { enabled: true, key: '', models: { chat: 'openai', image: 'flux' } },
       'sd3-gradio': { enabled: true, key: '', models: { image: 'sd3-medium' } },
-      'openai-compat': { enabled: true, key: '', secret: '', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', models: { chat: 'glm-4-flash', image: 'doubao-seedream-3-0-t2i-250528', vision: 'glm-4v-flash', video: '' } },
+      'openai-compat': { enabled: true, key: '', secret: '', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', models: { chat: 'glm-4-flash', image: 'cogview-3-flash', vision: 'glm-4v-flash', video: '' } },
       'dashscope-native': { enabled: false, key: '', models: { image: 'wanx2.1-t2i-turbo', video: 'wanx2.1-t2v-turbo' } },
       'baidu-aip': { enabled: false, key: '', secret: '', models: { upscale: 'image_super_resolution', matting: 'body_seg' } },
       removebg: { enabled: false, key: '', models: { matting: 'auto' } }
@@ -164,38 +164,31 @@ export function loadSettings() {
 function migrateLegacySettings() {
   const s = state.settings && state.settings.ai;
   if (!s || !s.routes) return;
-  // 文生图：旧默认 Pollinations → SD3（高清无水印）
-  if (s.routes.image) {
-    const r = s.routes.image;
-    const legacyImageModels = ['sana', 'flux', 'turbo', 'sdxl', undefined, null, ''];
-    if (r.provider === 'pollinations' && legacyImageModels.includes(r.model)) {
-      r.provider = 'sd3-gradio';
-      r.model = 'sd3-medium';
+  // 全部能力统一默认走智谱（openai-compat）。没填 Key 时由回退机制自动落到可用兜底
+  // （文生图→SD3 免费高清、超分/抠图/视频→本地引擎），保证功能不崩。
+  const map = {
+    chat: { m: 'glm-4-flash', old: ['pollinations'] },
+    image: { m: 'cogview-3-flash', old: ['pollinations', 'sd3-gradio'] },
+    vision: { m: 'glm-4v-flash', old: ['pollinations', 'local'] },
+    upscale: { m: '', old: ['local'] },
+    matting: { m: '', old: ['local'] },
+    video: { m: '', old: ['local'] }
+  };
+  for (const cap in map) {
+    const r = s.routes[cap];
+    if (!r) continue;
+    const { m, old } = map[cap];
+    if (old.includes(r.provider)) {
+      r.provider = 'openai-compat';
+      r.model = m;
     }
   }
-  // 智能对话：旧默认 Pollinations → 智谱 GLM-4-Flash（免费、稳定、质量好）
-  if (s.routes.chat) {
-    const c = s.routes.chat;
-    if (c.provider === 'pollinations') {
-      c.provider = 'openai-compat';
-      c.model = 'glm-4-flash';
-    }
-  }
-  // 看图理解：优先智谱 GLM-4V-Flash（在线、免费、真实视觉理解）；旧版本地引擎（local-analyze）或未填 Key 的 openai-compat 统一指向智谱，
-  // 无 Key 时由回退机制自动落到本地引擎兜底。
-  if (s.routes.vision) {
-    const v = s.routes.vision;
-    if (v.provider === 'local' || v.provider === 'pollinations' || (v.provider === 'openai-compat' && v.model !== 'glm-4v-flash')) {
-      v.provider = 'openai-compat';
-      v.model = 'glm-4v-flash';
-    }
-  }
-  // 确保智谱 GLM 所在通道已开启（否则对话/看图主通道会被判定为关闭）
+  // 确保智谱通道已开启（否则所有能力主通道会被判定为关闭）
   if (s.providers && s.providers['openai-compat'] && s.providers['openai-compat'].enabled === false) {
     s.providers['openai-compat'].enabled = true;
   }
   saveSettings();
-  console.log('[settings] 已自动升级通道：对话→智谱GLM，文生图→SD3，看图→智谱GLM-4V');
+  console.log('[settings] 已自动统一默认通道 → 智谱（OpenAI 兼容），无 Key 自动回退兜底');
 }
 
 export const saveSettings = debounce(() => {
