@@ -319,7 +319,7 @@ kbd {
   grid-template-columns: var(--leftbar-w) 1fr auto;
   grid-template-rows: var(--topbar-h) 1fr;
   grid-template-areas:
-    "topbar topbar topbar"
+    "topbar topbar rightbar"
     "leftbar stage rightbar";
   background: var(--bg-0);
 }
@@ -590,7 +590,7 @@ kbd {
 @media (max-width: 900px) {
   .topbar-create .tbtn span:not(.ico) { display: none; }
   .topbar-create .tbtn { padding: 0 8px; }
-  #rightbar { position: absolute; right: 0; top: var(--topbar-h); bottom: 0; box-shadow: var(--shadow-2); }
+  #rightbar { position: absolute; right: 0; top: 0; bottom: 0; box-shadow: var(--shadow-2); }
 }
 @media (max-width: 680px) {
   .zoom-cluster, .theme-label { display: none; }
