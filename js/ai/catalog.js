@@ -32,7 +32,7 @@ window.__STARRY_INLINE__.catalog = {
       label: 'Pollinations 免费模型',
       kind: 'free',
       needsKey: false,
-      note: '开箱即用的免费通道：文生图（Sana / Flux 等）与智能对话（OpenAI 开源模型）。出图请求强制携带 nologo=true，任何图片都不含水印。间歇性限流时自动重试或回退。',
+      note: '开箱即用的免费通道：文生图（Flux / Sana 等）与智能对话（OpenAI 开源模型）。出图请求强制携带 nologo=true，浏览器端再叠加像素级去水印，任何图片都不含水印。间歇性限流时自动重试或回退。',
       capabilities: {
         chat: {
           defaultModel: 'openai',
@@ -46,14 +46,14 @@ window.__STARRY_INLINE__.catalog = {
           ]
         },
         image: {
-          defaultModel: 'sana',
+          defaultModel: 'flux',
           models: [
-            { id: 'sana', label: 'Sana（默认，免费无水印）' },
-            { id: 'flux', label: 'Flux（免费档，高峰可能限流）' },
-            { id: 'turbo', label: 'Turbo（免费档）' },
-            { id: 'sdxl', label: 'SDXL（免费档）' }
+            { id: 'flux', label: 'Flux（默认，质量更好）' },
+            { id: 'sana', label: 'Sana（轻量快速）' },
+            { id: 'turbo', label: 'Turbo（快速）' },
+            { id: 'sdxl', label: 'SDXL（高质量）' }
           ],
-          maxSize: 1536
+          maxSize: 2048
         }
       }
     },

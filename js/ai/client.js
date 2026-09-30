@@ -25,6 +25,8 @@ export class AiClientError extends Error {
 
 const localEngines = { upscale: null, matting: null, video: null, analyze: null };
 
+function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
 export function registerLocalEngine(name, fn) { localEngines[name] = fn; }
 export function hasLocalEngine(name) { return typeof localEngines[name] === 'function'; }
 
@@ -109,13 +111,30 @@ export const ai = {
       }
       try {
         onAttempt?.({ route, attempt: tried.length + 1 });
-        const result = await this._invoke(capability, payload, route);
-        if (tried.length && capability !== 'chat') {
-          toast(`已由「${providerLabel(route.provider)}」完成`, { type: 'ok', timeout: 2200 });
+        // 同一路由重试：免费服务（Pollinations 等）间歇性限流/瞬时 5xx，稍等重试成功率显著更高
+        const maxTry = opts.retries ?? 2;
+        let result = null, lastRouteErr = null;
+        for (let t = 0; t < maxTry; t++) {
+          try {
+            result = await this._invoke(capability, payload, route);
+            break;
+          } catch (rerr) {
+            lastRouteErr = rerr;
+            const code = rerr && rerr.code;
+            // 用户输入类 / 内容策略 / 主动中止 / 缺 key 不重试
+            if (['bad_request', 'content_policy', 'abort', 'no_key', 'unsupported', 'no_route'].includes(code)) { lastRouteErr = rerr; result = null; break; }
+            if (t < maxTry - 1) { await sleep(1500 * (t + 1)); }
+          }
         }
-        result.__route = route;
-        result.__tried = tried;
-        return result;
+        if (result) {
+          if (tried.length && capability !== 'chat') {
+            toast(`已由「${providerLabel(route.provider)}」完成`, { type: 'ok', timeout: 2200 });
+          }
+          result.__route = route;
+          result.__tried = tried;
+          return result;
+        }
+        throw (lastRouteErr || new Error('retry exhausted'));
       } catch (err) {
         lastErr = err;
         tried.push({ provider: route.provider, error: err.code || 'error', message: err.message });
@@ -410,92 +429,88 @@ async function stripWatermark(dataUrl, providerHint) {
     });
     if (!img.naturalWidth || !img.naturalHeight) return dataUrl;
     const w = img.naturalWidth, h = img.naturalHeight;
-    if (w < 200 || h < 200) return dataUrl; // 小图不值得处理
+    if (w < 200 || h < 200) return dataUrl;
 
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(img, 0, 0);
     let id = ctx.getImageData(0, 0, w, h);
-    let px = id.data;
+    const px = id.data;
 
-    // 关注条带：右下角底部约 7% 高度、右 35% 宽度（Pollinations / 多数厂商 logo 落在此）
-    const bandY0 = Math.floor(h * 0.88);
-    const bandX0 = Math.floor(w * 0.62);
-    const ly = h - bandY0;   // 条带高度
-    const lx = w - bandX0;   // 条带宽度
-
-    // 1) 统计条带内「浅色前景」（>200 三通道）像素，判定是否为水印文字行
-    let bright = 0, total = 0;
-    const rowBright = new Array(ly).fill(0);
-    const colBright = new Array(lx).fill(0);
-    for (let y = 0; y < ly; y++) {
-      for (let x = 0; x < lx; x++) {
-        const yy = bandY0 + y, xx = bandX0 + x;
-        const i = (yy * w + xx) * 4;
-        const r = px[i], g = px[i + 1], b = px[i + 2];
-        total++;
-        if (r > 195 && g > 195 && b > 195) { bright++; rowBright[y]++; colBright[x]++; }
-      }
-    }
-    const ratio = bright / total;
-    // 水印的浅色像素占比通常 1%–18%；低于 0.5% 说明无文字 logo，直接返回原图
-    if (ratio < 0.005 || ratio > 0.35) return dataUrl;
-
-    // 2) 定位「水印行」：把条带按行切成几段，取浅色最密集的连续行区间
-    let bestTop = -1, bestBot = -1, bestScore = 0;
-    for (let y = 0; y < ly; y++) {
-      let score = 0;
-      for (let yy = y; yy < ly && yy < y + Math.floor(ly * 0.5); yy++) score += rowBright[yy];
-      if (score > bestScore) { bestScore = score; bestTop = y; bestBot = Math.min(ly, y + Math.floor(ly * 0.5)); }
-    }
-    if (bestScore === 0) return dataUrl;
-
-    // 3) 水印区域 = 条带里从 bestTop 到 bestBot，右端 bandX0..w（logo 几乎总贴右下）
-    const regX0 = bandX0, regX1 = w, regY0 = bandY0 + bestTop, regY1 = bandY0 + bestBot;
-    const regW = regX1 - regX0, regH = regY1 - regY0;
-    if (regW < 2 || regH < 2) return dataUrl;
-
-    // 4) 用「水印区域上方一行」的采样色做中值填充（保持背景连续，视觉无痕）
-    //    对每个水印像素：若它比上邻像素“更浅”且“与上方差异大”，视为水印前景并替换为上邻色；
-    //    否则保留（可能是主体的一部分）。
-    const fillRow = Math.max(0, regY0 - Math.max(1, Math.floor(regH * 0.3)));
-    let changed = 0;
-    const N = Math.max(2, Math.floor(regH * 0.2));
-    for (let y = regY0; y < regY1; y++) {
-      // 逐列取该列上方条带的代表色（中值）
-      for (let x = regX0; x < regX1; x++) {
-        const idx = (y * w + x) * 4;
-        const r = px[idx], g = px[idx + 1], b = px[idx + 2];
-        // 水印前景 = 高亮且与局部上方有明确反差
-        if (r > 175 && g > 175 && b > 175) {
-          // 取该像素上方 1~N 行、同列 ±3px 的中值颜色
-          const samples = [];
-          for (let k = 1; k <= N; k++) {
-            const sy = y - k; if (sy < 0) continue;
-            for (let dx = -3; dx <= 3; dx++) {
-              const sx = x + dx; if (sx < 0 || sx >= w) continue;
-              const si = (sy * w + sx) * 4;
-              samples.push([px[si], px[si + 1], px[si + 2]]);
-            }
-          }
-          if (samples.length) {
-            const med = medianColor(samples);
-            // 与上方代表色差异足够大才替换（防止误伤主体的浅色像素）
-            const dR = r - med[0], dG = g - med[1], dB = b - med[2];
-            if (dR + dG + dB > 120) {
-              px[idx] = med[0]; px[idx + 1] = med[1]; px[idx + 2] = med[2]; px[idx + 3] = 255;
-              changed++;
-            }
-          }
+    // —— 已知带固定右下角水印的源（Pollinations）：直接整块覆盖，不依赖颜色启发式 ——
+    // 水印固定在右下角（约 x>0.68w、y>0.90h），用上方相邻行背景色覆盖，保背景走势。
+    if (providerHint === 'pollinations' || !providerHint) {
+      const x0 = Math.floor(w * 0.68), y0 = Math.floor(h * 0.90);
+      const refStep = Math.max(4, Math.floor(h * 0.05));
+      // 用「覆盖区上方」多行的中值色做横向平滑填充，减少斑块
+      for (let y = y0; y < h; y++) {
+        const refY = Math.max(0, y - refStep);
+        for (let x = x0; x < w; x++) {
+          const idx = (y * w + x) * 4, ridx = (refY * w + x) * 4;
+          px[idx] = px[ridx]; px[idx + 1] = px[ridx + 1]; px[idx + 2] = px[ridx + 2]; px[idx + 3] = 255;
         }
       }
+      ctx.putImageData(id, 0, 0);
+      const mime = (dataUrl.match(/^data:([^;]+)/) || [])[1] || 'image/png';
+      return cv.toDataURL(mime, 0.94);
     }
-    if (changed < Math.max(8, (regW * regH) * 0.01)) return dataUrl; // 改动太少视为无意义，返回原图
+
+    // —— 其他源：启发式检测角落文字水印 ——
+    const regions = [
+      { y0: Math.floor(h * 0.90), y1: h, x0: Math.floor(w * 0.52), x1: w },
+      { y0: Math.floor(h * 0.90), y1: h, x0: 0, x1: Math.floor(w * 0.45) },
+      { y0: 0, y1: Math.floor(h * 0.08), x0: Math.floor(w * 0.52), x1: w }
+    ];
+    let anyCleared = false;
+    for (const rg of regions) {
+      const ly = rg.y1 - rg.y0, lx = rg.x1 - rg.x0;
+      if (ly < 4 || lx < 4) continue;
+      // 统计区域内「与背景有反差的边缘像素」：取亮度梯度，文字水印常呈强对比
+      let edge = 0, total = 0;
+      const rowEdge = new Array(ly).fill(0);
+      const colEdge = new Array(lx).fill(0);
+      for (let y = 0; y < ly; y++) {
+        for (let x = 0; x < lx; x++) {
+          const yy = rg.y0 + y, xx = rg.x0 + x;
+          const i = (yy * w + xx) * 4;
+          const r = px[i], g = px[i + 1], b = px[i + 2];
+          total++;
+          // 与左侧/上方像素亮度差大 → 边缘（文字笔画）
+          const j = (yy * w + (xx - 1)) * 4;
+          const k = ((yy - 1) * w + xx) * 4;
+          const diffL = xx > 0 ? Math.abs(r - px[j]) + Math.abs(g - px[j + 1]) + Math.abs(b - px[j + 2]) : 0;
+          const diffU = yy > 0 ? Math.abs(r - px[k]) + Math.abs(g - px[k + 1]) + Math.abs(b - px[k + 2]) : 0;
+          if (diffL > 45 || diffU > 45) { edge++; rowEdge[y]++; colEdge[x]++; }
+        }
+      }
+      const ratio = edge / total;
+      if (ratio < 0.01 || ratio > 0.6) continue; // 无文字则跳过
+      // 定位文字行
+      let bestTop = -1, bestBot = -1, bestScore = 0;
+      for (let y = 0; y < ly; y++) {
+        let score = 0;
+        for (let yy = y; yy < ly && yy < y + Math.floor(ly * 0.6); yy++) score += rowEdge[yy];
+        if (score > bestScore) { bestScore = score; bestTop = y; bestBot = Math.min(ly, y + Math.floor(ly * 0.6)); }
+      }
+      if (bestScore < 4) continue;
+      const regX0 = rg.x0, regX1 = rg.x1, regY0 = rg.y0 + bestTop, regY1 = rg.y0 + bestBot;
+      const refStep = Math.max(4, Math.floor((regY1 - regY0) * 0.4));
+      for (let y = regY0; y < regY1; y++) {
+        const refY = Math.max(0, y - refStep);
+        for (let x = regX0; x < regX1; x++) {
+          const idx = (y * w + x) * 4, ridx = (refY * w + x) * 4;
+          px[idx] = px[ridx]; px[idx + 1] = px[ridx + 1]; px[idx + 2] = px[ridx + 2]; px[idx + 3] = 255;
+          anyCleared = true;
+        }
+      }
+      if (anyCleared) break;
+    }
+    if (!anyCleared) return dataUrl;
 
     ctx.putImageData(id, 0, 0);
     const mime = (dataUrl.match(/^data:([^;]+)/) || [])[1] || 'image/png';
-    return cv.toDataURL(mime, 0.92);
+    return cv.toDataURL(mime, 0.94);
   } catch (_) {
     return dataUrl;
   }

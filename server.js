@@ -50,7 +50,7 @@ function inlineCatalog() {
         note: '开箱即用的免费通道（服务端转发，绕过浏览器 CORS 与人机验证）。文生图 Sana/Flux 等、对话 OpenAI 开源模型。出图强制 nologo=true，任何图片都不含水印。',
         capabilities: {
           chat: { defaultModel: 'openai', models: [{ id: 'openai', label: 'GPT-OSS 20B（推理）' }, { id: 'openai-fast', label: 'GPT-OSS 20B（快速）' }, { id: 'mistral', label: 'Mistral' }, { id: 'llama', label: 'Llama' }, { id: 'qwen', label: 'Qwen' }, { id: 'gemini', label: 'Gemini' }] },
-          image: { defaultModel: 'sana', models: [{ id: 'sana', label: 'Sana（免费无水印）' }, { id: 'flux', label: 'Flux（免费档）' }, { id: 'turbo', label: 'Turbo（免费档）' }, { id: 'sdxl', label: 'SDXL（免费档）' }], maxSize: 1536 }
+          image: { defaultModel: 'flux', models: [{ id: 'flux', label: 'Flux（默认，质量更好）' }, { id: 'sana', label: 'Sana（轻量快速）' }, { id: 'turbo', label: 'Turbo（快速）' }, { id: 'sdxl', label: 'SDXL（高质量）' }], maxSize: 2048 }
         }
       },
       { id: 'openai-compat', label: 'OpenAI 兼容接口（自备 Key）', kind: 'byok', needsKey: true,
@@ -184,20 +184,22 @@ async function forwardPollinationsChat(payload, model) {
 }
 
 async function forwardPollinationsImage(payload, model) {
-  // 强制 nologo=true 去水印；把 watermark/logo 写进负面提示词
-  const width = clampInt(payload.width, 256, 1536, 1024);
-  const height = clampInt(payload.height, 256, 1536, 1024);
+  // 强制 nologo=true 去水印；负面词含 watermark/logo/blurry；enhance=true 提升清晰度。
+  // 免费档仅 512 分辨率稳定（>512 常被 402/500 限流），故服务端把尺寸钳到 512，
+  // 客户端随后自动本地放大到用户所选目标尺寸并锐化，既稳定又高清。
+  const width = clampInt(payload.width, 256, 512, 512);
+  const height = clampInt(payload.height, 256, 512, 512);
   const params = new URLSearchParams({
     width: String(width), height: String(height),
-    model: model || 'sana', nologo: 'true', private: 'true',
+    model: model || 'flux', nologo: 'true', private: 'true', enhance: 'true',
     seed: String(payload.seed ?? Math.floor(Math.random() * 99999999))
   });
-  const neg = String(payload.negativePrompt || 'text, watermark, logo, worst quality, low quality').slice(0, 300);
+  const neg = String(payload.negativePrompt || 'text, watermark, logo, worst quality, low quality, blurry, blur, soft focus, out of focus').slice(0, 300);
   params.set('negative', neg);
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(String(payload.prompt || '')).slice(0, 1800)}?${params}`;
   const r = await upstream(url, { headers: { Accept: 'image/*' } });
   if (r.status !== 200) throw upstreamError(r.status, `免费文生图返回 ${r.status}（可能限流，请稍后重试）`);
-  return { ok: true, data: { images: [r.body.toString('base64')], imageBase64: true, width, height, model: model || 'sana', mime: (r.headers['content-type'] || 'image/jpeg').split(';')[0] } };
+  return { ok: true, data: { images: [r.body.toString('base64')], imageBase64: true, width, height, model: model || 'flux', mime: (r.headers['content-type'] || 'image/jpeg').split(';')[0] } };
 }
 
 /** OpenAI 兼容：chat / vision / image（gpt-image-1） */

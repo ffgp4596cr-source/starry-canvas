@@ -10,7 +10,7 @@
 import { state, bus, getNode, createNode, setSelection, resolveSize, modeById, applyModeTemplate, availableRoutes, providerLabel } from '../core/state.js';
 import { renderAllNodes, focusNode, findFreeSpot } from '../core/engine.js';
 import { ai, hasLocalEngine } from '../ai/client.js';
-import { localWhiteBackground, fitExact } from './imageops.js';
+import { localWhiteBackground, fitExact, localUpscale } from './imageops.js';
 import { showBusy } from './exporter.js';
 import { nodeSizeForImage } from './clipboard.js';
 import { el, modal, toast, readImage, clamp } from '../ui/dom.js';
@@ -422,10 +422,30 @@ export async function runGenerate(cfg) {
         }
       }
 
-      // 供应商常把宽高对齐到 64 的倍数（请求 800×800 实际返回 768×768），
-      // 而白底图 / 详情页对像素尺寸有硬性规范，这里精确对齐到用户选择的尺寸
+      // 高清增强：免费接口常把图压到 512–768（请求 1024 只回 768），
+      // 先按比例放大到目标尺寸附近并锐化，再精确对齐——解决"模糊"痛点
       if (cfg.width && cfg.height) {
         const isWhite = !!(md && (md.postProcess || []).indexOf('whiteBackground') >= 0);
+        try {
+          busy.update('高清增强中…');
+          // 读取实际像素尺寸
+          const probe = await readImage(dataUrl);
+          const natW = probe.naturalWidth, natH = probe.naturalHeight;
+          const targetW = cfg.width, targetH = cfg.height;
+          // 若实际图明显小于目标（任一边 < 目标的 80%），先本地放大
+          if (natW && natH && (natW < targetW * 0.8 || natH < targetH * 0.8)) {
+            const factor = clamp(Math.max(targetW / (natW || 1), targetH / (natH || 1)), 1, 4);
+            if (factor > 1.15) {
+              const up = await localUpscale(dataUrl, { factor: Math.min(2, factor), sharpen: 1.2 });
+              if (up.dataUrl) {
+                dataUrl = up.dataUrl;
+                engine += ' + 本地高清增强';
+              }
+            }
+          }
+        } catch (err) {
+          // 高清增强失败不影响出图，继续
+        }
         try {
           busy.update('对齐目标尺寸…');
           const fit = await fitExact(dataUrl, cfg.width, cfg.height, { mode: 'cover', bg: isWhite ? '#ffffff' : null });
