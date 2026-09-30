@@ -151,7 +151,27 @@ export function loadSettings() {
     console.warn('[settings] 读取失败，使用默认设置', err);
     state.settings = structuredClone(DEFAULT_SETTINGS);
   }
+  migrateLegacySettings();
   return state.settings;
+}
+
+/**
+ * 旧版本设置自动迁移：
+ * 旧版默认文生图走 Pollinations（sana / flux），新版默认改为 SD3-Medium（高清无水印）。
+ * 若用户当前文生图通道仍是旧默认的 Pollinations 且模型为旧默认值，则自动升级到 SD3。
+ * 用户主动改选的其他通道（含 Pollinations 非默认模型、自备 Key 等）保持原样。
+ */
+function migrateLegacySettings() {
+  const s = state.settings && state.settings.ai;
+  if (!s || !s.routes || !s.routes.image) return;
+  const r = s.routes.image;
+  const legacyImageModels = ['sana', 'flux', 'turbo', 'sdxl', undefined, null, ''];
+  if (r.provider === 'pollinations' && legacyImageModels.includes(r.model)) {
+    r.provider = 'sd3-gradio';
+    r.model = 'sd3-medium';
+    saveSettings();
+    console.log('[settings] 已自动升级文生图通道 → Stable Diffusion 3（高清无水印）');
+  }
 }
 
 export const saveSettings = debounce(() => {
