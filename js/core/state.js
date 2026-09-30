@@ -47,7 +47,7 @@ export const DEFAULT_SETTINGS = {
     routes: {
       chat: { provider: 'openai-compat', model: 'glm-4-flash' },
       image: { provider: 'sd3-gradio', model: 'sd3-medium' },
-      vision: { provider: 'local', model: 'local-analyze' },
+      vision: { provider: 'openai-compat', model: 'glm-4v-flash' },
       upscale: { provider: 'local', model: 'local-upscale' },
       matting: { provider: 'local', model: 'local-matting' },
       video: { provider: 'local', model: 'local-video' }
@@ -181,17 +181,21 @@ function migrateLegacySettings() {
       c.model = 'glm-4-flash';
     }
   }
-  // 看图理解：旧默认 openai-compat（未填 Key 时显示"供应商已关闭"）→ 本地引擎（离线可用）
-  if (s.routes.vision && s.routes.vision.provider === 'openai-compat' && !(s.providers && s.providers['openai-compat'] && s.providers['openai-compat'].key)) {
-    s.routes.vision.provider = 'local';
-    s.routes.vision.model = 'local-analyze';
+  // 看图理解：优先智谱 GLM-4V-Flash（在线、免费、真实视觉理解）；旧版本地引擎（local-analyze）或未填 Key 的 openai-compat 统一指向智谱，
+  // 无 Key 时由回退机制自动落到本地引擎兜底。
+  if (s.routes.vision) {
+    const v = s.routes.vision;
+    if (v.provider === 'local' || v.provider === 'pollinations' || (v.provider === 'openai-compat' && v.model !== 'glm-4v-flash')) {
+      v.provider = 'openai-compat';
+      v.model = 'glm-4v-flash';
+    }
   }
-  // 确保智谱 GLM 所在通道已开启（否则对话主通道会被判定为关闭）
+  // 确保智谱 GLM 所在通道已开启（否则对话/看图主通道会被判定为关闭）
   if (s.providers && s.providers['openai-compat'] && s.providers['openai-compat'].enabled === false) {
     s.providers['openai-compat'].enabled = true;
   }
   saveSettings();
-  console.log('[settings] 已自动升级通道：对话→智谱GLM，文生图→SD3，看图→本地引擎');
+  console.log('[settings] 已自动升级通道：对话→智谱GLM，文生图→SD3，看图→智谱GLM-4V');
 }
 
 export const saveSettings = debounce(() => {
