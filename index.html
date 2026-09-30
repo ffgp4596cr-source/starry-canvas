@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>星空画布 · Starry Canvas</title>
+<meta name="description" content="星空画布：可无限蔓延的 AI 创作画布，支持文生图、变清晰、抠图、提示词反推与智能对话。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23070b18'/%3E%3Cpath d='M16 5l2.4 7.1L25.5 14l-7.1 2.4L16 23.5l-2.4-7.1L6.5 14l7.1-1.9z' fill='%234cc9f0'/%3E%3Ccircle cx='24' cy='23' r='1.6' fill='%23a06bff'/%3E%3Ccircle cx='8' cy='24' r='1.1' fill='%234cc9f0'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./css/base.css">
+<link rel="stylesheet" href="./css/canvas.css">
+<link rel="stylesheet" href="./css/ui.css">
+</head>
+<body>
+<div id="app" class="boot">
+
+  <!-- ══════════ 顶部栏 ══════════ -->
+  <header id="topbar">
+    <div class="brand" title="星空画布">
+      <span class="brand-mark">✦</span>
+      <span class="brand-name">星空画布</span>
+      <span class="brand-sub">STARRY CANVAS</span>
+    </div>
+
+    <nav class="topbar-create" id="create-bar" aria-label="创建">
+      <button class="tbtn" data-create="image" title="上传图片到画布（也可直接拖拽/粘贴）">
+        <span class="ico">🖼</span><span>图片</span>
+      </button>
+      <button class="tbtn" data-create="text" title="创建文本卡片（双击画布空白处也可创建）">
+        <span class="ico">📝</span><span>文本</span>
+      </button>
+      <button class="tbtn" data-create="note" title="创建便签">
+        <span class="ico">🗒</span><span>便签</span>
+      </button>
+      <button class="tbtn primary" data-create="generate" title="打开 AI 生成面板">
+        <span class="ico">✨</span><span>AI 生成</span>
+      </button>
+      <button class="tbtn" data-create="chat" title="打开智能对话">
+        <span class="ico">💬</span><span>对话</span>
+      </button>
+    </nav>
+
+    <div class="topbar-right">
+      <div class="zoom-cluster">
+        <button class="icon-btn" id="zoom-out" title="缩小（Ctrl -）">−</button>
+        <button class="zoom-value" id="zoom-value" title="点击恢复 100%">100%</button>
+        <button class="icon-btn" id="zoom-in" title="放大（Ctrl +）">+</button>
+        <button class="icon-btn" id="zoom-fit" title="适应全部内容（Shift 1）">⤢</button>
+      </div>
+
+      <div class="theme-switch" id="theme-switch" role="button" tabindex="0" title="切换明暗主题（Ctrl J）">
+        <span class="theme-track"><span class="theme-thumb"></span></span>
+        <span class="theme-label" id="theme-label">深空黑</span>
+      </div>
+
+      <button class="icon-btn" id="btn-prompt-studio" title="提示词工坊（输出/反推提示词）">⌘</button>
+      <button class="icon-btn" id="btn-settings" title="AI 接口设置">⚙</button>
+      <button class="icon-btn" id="btn-export" title="导出下载（自选格式）">⬇</button>
+      <button class="icon-btn" id="btn-help" title="快捷键与帮助">?</button>
+    </div>
+  </header>
+
+  <!-- ══════════ 左侧工具条 ══════════ -->
+  <aside id="leftbar" aria-label="工具">
+    <button class="tool" data-tool="select" title="选择 / 移动（V）"><span>➤</span></button>
+    <button class="tool" data-tool="pan" title="抓手平移（H，或按住空格）"><span>✥</span></button>
+    <div class="tool-sep"></div>
+    <button class="tool" data-create="image" title="上传图片"><span>🖼</span></button>
+    <button class="tool" data-create="text" title="文本卡片"><span>T</span></button>
+    <button class="tool" data-create="note" title="便签"><span>▤</span></button>
+    <button class="tool" data-create="generate" title="AI 生成"><span>✨</span></button>
+    <div class="tool-sep"></div>
+    <button class="tool" id="tool-undo" title="撤销（Ctrl Z）"><span>↶</span></button>
+    <button class="tool" id="tool-redo" title="重做（Ctrl Shift Z）"><span>↷</span></button>
+    <div class="tool-sep"></div>
+    <button class="tool danger" id="tool-delete" title="删除选中（Delete）"><span>🗑</span></button>
+    <div class="leftbar-spacer"></div>
+    <div class="engine-badge" id="engine-badge" title="当前 AI 通道">
+      <span class="dot"></span><span id="engine-text">免费模型</span>
+    </div>
+  </aside>
+
+  <!-- ══════════ 画布舞台 ══════════ -->
+  <main id="stage" tabindex="0">
+    <canvas id="bg-canvas" aria-hidden="true"></canvas>
+    <div id="world">
+      <svg id="edges" aria-hidden="true"></svg>
+      <div id="nodes"></div>
+    </div>
+    <div id="marquee" class="hidden" aria-hidden="true"></div>
+
+    <div id="hint-empty" class="hint-empty">
+      <div class="hint-title">✦ 无限画布已就绪</div>
+      <div class="hint-lines">
+        <span>拖入 / 粘贴（<kbd>Ctrl V</kbd>）图片即可开始</span>
+        <span>双击空白处创建文本，双击图片唤出 AI 工具</span>
+        <span>滚轮缩放，空格拖拽平移，画布无边界</span>
+      </div>
+    </div>
+
+    <div id="hud">
+      <span id="hud-pos">x 0 · y 0</span>
+      <span class="hud-sep">|</span>
+      <span id="hud-count">0 个节点</span>
+      <span class="hud-sep">|</span>
+      <span id="hud-mode">选择模式</span>
+    </div>
+
+    <div id="locator-panel" class="locator-panel">
+      <div class="locator-header" id="locator-header" title="点击折叠/展开">
+        <span class="locator-title">📍 定位</span>
+        <button class="locator-toggle" id="locator-toggle" title="折叠/展开">−</button>
+      </div>
+      <div class="locator-body" id="locator-body">
+        <div class="locator-row"><span class="locator-label">视口中心</span><span class="loc-v" id="locator-center">x 0 · y 0</span></div>
+        <div class="locator-row"><span class="locator-label">最近节点</span><span class="loc-v" id="locator-nearest">—</span></div>
+        <div class="locator-row"><span class="locator-label">方位</span><span class="loc-v" id="locator-dir">—</span></div>
+        <div class="locator-row"><span class="locator-label">节点总数</span><span class="loc-v" id="locator-count">0</span></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ══════════ 右侧面板 ══════════ -->
+  <aside id="rightbar" class="hidden" aria-label="面板">
+    <div class="panel-tabs" id="panel-tabs">
+      <button class="ptab active" data-panel="generate">✨ 生成</button>
+      <button class="ptab" data-panel="prompt">⌘ 提示词</button>
+      <button class="ptab" data-panel="chat">💬 对话</button>
+      <button class="ptab" data-panel="props">⚒ 属性</button>
+    </div>
+    <button class="panel-close" id="panel-close" title="收起面板">✕</button>
+    <div class="panel-body" id="panel-body"></div>
+  </aside>
+
+  <!-- ══════════ 浮层容器 ══════════ -->
+  <div id="tool-menu" class="tool-menu hidden" role="menu" aria-label="图片工具"></div>
+  <div id="modal-root"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <input type="file" id="file-input" accept="image/*,video/*,.json" multiple class="sr-only">
+  <div id="boot-splash"><div class="splash-star">✦</div><div class="splash-text">星空画布 · 正在展开无限画布</div></div>
+</div>
+
+<script>
+/* === 强制启动保险：在 boot 之前，先移除所有可能阻塞启动的东西 === */
+(function(){
+  'use strict';
+  var forceReveal = function() {
+    var app = document.getElementById('app');
+    if (app) app.classList.remove('boot');
+    var sp = document.getElementById('boot-splash');
+    if (sp && sp.parentNode) {
+      sp.style.transition = 'opacity .5s';
+      sp.style.opacity = '0';
+      sp.style.pointerEvents = 'none';
+      setTimeout(function() { if (sp.parentNode) sp.parentNode.removeChild(sp); }, 600);
+    }
+  };
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    forceReveal();
+  } else {
+    document.addEventListener('DOMContentLoaded', forceReveal);
+    window.addEventListener('load', forceReveal);
+  }
+  setTimeout(forceReveal, 3000);
+  setTimeout(forceReveal, 6000);
+})();
+</script>
+<script src="./js/ai/catalog.js"></script>
+<script type="module" src="./js/main.js"></script>
+<noscript><div style="padding:40px;font:16px system-ui">星空画布需要启用 JavaScript 才能运行。</div></noscript>
+</body>
+</html>

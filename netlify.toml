@@ -1,0 +1,13 @@
+[build]
+  # 静态资源直接以项目根目录发布（index.html + css/ + js/）
+  publish = "."
+  # 无服务器函数目录（后端代理逻辑封装在此，绕过 CORS / 人机验证，免费模型可用）
+  functions = "netlify/functions"
+
+# 把 /api/* 全部转发到 Netlify Functions 统一入口
+# 前端 client.js 探测 ./api/providers 成功即自动切换到"后端模式"
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
