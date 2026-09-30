@@ -30,11 +30,17 @@ function inlineCatalog() {
       { id: 'matting', label: '抠图（主体分离）' }, { id: 'video', label: '视频生成' }
     ],
     providers: [
+      { id: 'sd3-gradio', label: 'Stable Diffusion 3（免费高清）', kind: 'free', needsKey: false,
+        note: '免费高清文生图（SD3-Medium 1024×1024，Netlify 函数经公共推理空间转发）。原生高清无水印。',
+        capabilities: {
+          image: { defaultModel: 'sd3-medium', models: [{ id: 'sd3-medium', label: 'SD3-Medium（默认，1024 高清）' }], maxSize: 1344 }
+        }
+      },
       { id: 'pollinations', label: 'Pollinations 免费模型', kind: 'free', needsKey: false,
-        note: '开箱即用的免费通道（Netlify 函数服务端转发，绕过浏览器 CORS 与人机验证）。文生图 Sana/Flux 等、对话 OpenAI 开源模型。出图强制 nologo=true，任何图片都不含水印。',
+        note: '备用免费通道（Netlify 函数服务端转发，绕过浏览器 CORS 与人机验证）。文生图 Sana/Flux 等、对话 OpenAI 开源模型。出图强制去水印。',
         capabilities: {
           chat: { defaultModel: 'openai', models: [{ id: 'openai', label: 'GPT-OSS 20B（推理）' }, { id: 'openai-fast', label: 'GPT-OSS 20B（快速）' }, { id: 'mistral', label: 'Mistral' }, { id: 'llama', label: 'Llama' }, { id: 'qwen', label: 'Qwen' }, { id: 'gemini', label: 'Gemini' }] },
-          image: { defaultModel: 'flux', models: [{ id: 'flux', label: 'Flux（默认，质量更好）' }, { id: 'sana', label: 'Sana（轻量快速）' }, { id: 'turbo', label: 'Turbo（快速）' }, { id: 'sdxl', label: 'SDXL（高质量）' }], maxSize: 2048 }
+          image: { defaultModel: 'flux', models: [{ id: 'flux', label: 'Flux（质量较好）' }, { id: 'sana', label: 'Sana（轻量快速）' }, { id: 'turbo', label: 'Turbo（快速）' }, { id: 'sdxl', label: 'SDXL（高质量）' }], maxSize: 2048 }
         }
       },
       { id: 'openai-compat', label: 'OpenAI 兼容接口（自备 Key）', kind: 'byok', needsKey: true,
@@ -174,6 +180,47 @@ async function forwardPollinationsImage(payload, model) {
   return { ok: true, data: { images: [r.body.toString('base64')], imageBase64: true, width, height, model: model || 'flux', mime: (r.headers['content-type'] || 'image/jpeg').split(';')[0] } };
 }
 
+/** SD3-Medium 免费高清文生图（经 HuggingFace Gradio 公共空间转发，原生 1024 无水印） */
+const SD3_SPACE = 'https://stabilityai-stable-diffusion-3-medium.hf.space';
+async function forwardSD3Image(payload, model) {
+  const width = clampInt(payload.width, 256, 1344, 1024);
+  const height = clampInt(payload.height, 256, 1344, 1024);
+  const seed = payload.seed != null ? payload.seed : Math.floor(Math.random() * 2147483647);
+  const neg = String(payload.negativePrompt || 'text, watermark, logo, worst quality, blurry').slice(0, 300);
+
+  const submit = await upstream(`${SD3_SPACE}/gradio_api/call/infer`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: [String(payload.prompt || '').slice(0, 400), neg, seed, true, width, height, 7.0, 20]
+    })
+  });
+  if (submit.status !== 200) throw upstreamError(submit.status, `SD3 提交失败 ${submit.status}`);
+  let job;
+  try { job = JSON.parse(submit.text); } catch (_) { throw upstreamError(500, 'SD3 提交响应异常'); }
+  const eventId = job.event_id;
+  if (!eventId) throw upstreamError(500, 'SD3 未返回任务号');
+
+  let imgUrl = null;
+  for (let i = 0; i < 12; i++) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const poll = await upstream(`${SD3_SPACE}/gradio_api/call/infer/${encodeURIComponent(eventId)}`, { headers: { Accept: 'text/event-stream' } });
+    const txt = poll.text || '';
+    if (poll.status === 200 && txt.includes('image.webp')) {
+      const m = txt.match(/"url"\s*:\s*"([^"]+)"/);
+      if (m) imgUrl = m[1];
+      break;
+    }
+    if (txt.includes('"error"')) break;
+  }
+  if (!imgUrl) throw upstreamError(504, 'SD3 出图超时（排队繁忙），请稍后重试或回退通道');
+
+  const dl = await upstream(imgUrl, { headers: { Accept: 'image/*' } });
+  if (dl.status !== 200) throw upstreamError(dl.status, 'SD3 下载图片失败');
+  const mime = (dl.headers['content-type'] || 'image/webp').split(';')[0];
+  return { ok: true, data: { images: [dl.body.toString('base64')], imageBase64: true, width, height, model: 'sd3-medium', mime } };
+}
+
 async function forwardOpenAiCompat(payload, model, cap, baseUrl, key) {
   const base = (baseUrl || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
   if (cap === 'chat' || cap === 'vision') {
@@ -284,6 +331,9 @@ async function forwardRemoveBg(payload, key) {
 
 async function routeForward(provider, cap, model, body, key, secret, baseUrl) {
   switch (provider) {
+    case 'sd3-gradio':
+      if (cap === 'image') return await forwardSD3Image(body, model);
+      throw upstreamError(400, `SD3 免费通道仅支持文生图`);
     case 'pollinations':
       if (cap === 'chat') return await forwardPollinationsChat(body, model);
       if (cap === 'image') return await forwardPollinationsImage(body, model);

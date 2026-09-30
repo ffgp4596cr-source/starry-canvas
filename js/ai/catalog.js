@@ -26,13 +26,27 @@ window.__STARRY_INLINE__.catalog = {
     { id: 'video', label: '视频生成' }
   ],
   providers: [
-    /* ---------- 免费模型（浏览器直连，无需 Key） ---------- */
+    /* ---------- 免费模型（服务端转发，无需 Key） ---------- */
+    {
+      id: 'sd3-gradio',
+      label: 'Stable Diffusion 3（免费高清）',
+      kind: 'free',
+      needsKey: false,
+      note: '免费高清文生图（SD3-Medium 1024×1024，由服务端经公共推理空间转发）。原生高清无水印，无需放大。出图清晰细腻。',
+      capabilities: {
+        image: {
+          defaultModel: 'sd3-medium',
+          models: [{ id: 'sd3-medium', label: 'SD3-Medium（默认，1024 高清）' }],
+          maxSize: 1344
+        }
+      }
+    },
     {
       id: 'pollinations',
       label: 'Pollinations 免费模型',
       kind: 'free',
       needsKey: false,
-      note: '开箱即用的免费通道：文生图（Flux / Sana 等）与智能对话（OpenAI 开源模型）。出图请求强制携带 nologo=true，浏览器端再叠加像素级去水印，任何图片都不含水印。间歇性限流时自动重试或回退。',
+      note: '备用免费通道：文生图（Flux / Sana 等）与智能对话（OpenAI 开源模型）。出图请求强制携带 nologo=true，浏览器端再叠加像素级去水印，任何图片都不含水印。间歇性限流时自动重试或回退。',
       capabilities: {
         chat: {
           defaultModel: 'openai',

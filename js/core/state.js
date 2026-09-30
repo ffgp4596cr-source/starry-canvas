@@ -46,14 +46,15 @@ export const DEFAULT_SETTINGS = {
   ai: {
     routes: {
       chat: { provider: 'pollinations', model: 'openai' },
-      image: { provider: 'pollinations', model: 'sana' },
+      image: { provider: 'sd3-gradio', model: 'sd3-medium' },
       vision: { provider: 'openai-compat', model: '' },
       upscale: { provider: 'local', model: 'local-upscale' },
       matting: { provider: 'local', model: 'local-matting' },
       video: { provider: 'local', model: 'local-video' }
     },
     providers: {
-      pollinations: { enabled: true, key: '', models: { chat: 'openai', image: 'sana' } },
+      pollinations: { enabled: true, key: '', models: { chat: 'openai', image: 'flux' } },
+      'sd3-gradio': { enabled: true, key: '', models: { image: 'sd3-medium' } },
       'openai-compat': { enabled: false, key: '', secret: '', baseUrl: 'https://api.deepseek.com/v1', models: { chat: '', image: '', vision: '', video: '' } },
       'dashscope-native': { enabled: false, key: '', models: { image: 'wanx2.1-t2i-turbo', video: 'wanx2.1-t2v-turbo' } },
       'baidu-aip': { enabled: false, key: '', secret: '', models: { upscale: 'image_super_resolution', matting: 'body_seg' } },
