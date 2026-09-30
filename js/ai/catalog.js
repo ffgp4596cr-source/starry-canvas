@@ -85,12 +85,13 @@ window.__STARRY_INLINE__.catalog = {
         { label: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', chatModels: ['qwen-plus', 'qwen-turbo', 'qwen-vl-max'], vision: true, imageModels: ['qwen-image'] },
         { label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', chatModels: ['glm-4-plus', 'glm-4v-flash', 'glm-4v-plus'], vision: true },
         { label: 'Kimi', baseUrl: 'https://api.moonshot.cn/v1', chatModels: ['moonshot-v1-8k', 'moonshot-v1-32k'] },
-        { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', chatModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'], vision: true, imageModels: ['dall-e-3', 'gpt-image-1'] }
+        { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', chatModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'], vision: true, imageModels: ['dall-e-3', 'gpt-image-1'] },
+        { label: '豆包（火山方舟 Seedream）', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', chatModels: ['doubao-seed-1-6-250615', 'doubao-lite-32k-250615'], vision: false, imageModels: ['doubao-seedream-3-0-t2i-250528'], imageOnly: true }
       ],
       capabilities: {
-        chat: { defaultModel: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max', 'glm-4-plus', 'glm-4v-flash', 'moonshot-v1-8k', 'gpt-4o-mini', 'gpt-4o'] },
+        chat: { defaultModel: 'deepseek-chat', models: ['deepseek-chat', 'deepseek-reasoner', 'qwen-plus', 'qwen-turbo', 'qwen-vl-max', 'glm-4-plus', 'glm-4v-flash', 'moonshot-v1-8k', 'gpt-4o-mini', 'gpt-4o', 'doubao-seed-1-6-250615'] },
         vision: { defaultModel: 'qwen-vl-max', models: ['qwen-vl-max', 'glm-4v-flash', 'glm-4v-plus', 'gpt-4o-mini', 'gpt-4o'] },
-        image: { defaultModel: 'qwen-image', models: ['qwen-image', 'dall-e-3', 'gpt-image-1'] }
+        image: { defaultModel: 'doubao-seedream-3-0-t2i-250528', models: ['doubao-seedream-3-0-t2i-250528', 'qwen-image', 'dall-e-3', 'gpt-image-1'] }
       }
     },
     /* ---------- 自备 Key：通义万相（需后端代理） ---------- */

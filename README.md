@@ -59,10 +59,13 @@ node server.js          # 默认端口 8080
 | 供应商 | 能力 | 填什么 |
 |---|---|---|
 | OpenAI 兼容接口 | 对话 / 看图 / 文生图 | Base URL + API Key |
+| —— **豆包（火山方舟 Seedream 3.0）** | **文生图（质量顶配、出图快）** / 对话 | 火山方舟 API Key（新用户有免费额度） |
 | —— DeepSeek / 通义千问 / 智谱 GLM / Kimi / OpenAI | 对话、看图（部分） | 预设已内置 |
 | 通义万相 | 文生图 / 文生视频 | DashScope API Key |
 | 百度智能云 | 人像分割抠图 / 图像超分 | API Key + Secret Key |
 | remove.bg | 专业抠图 | remove.bg API Key |
+
+> **想要又快又顶配的出图**：在「设置 → AI 接口」选 **豆包（火山方舟 Seedream）** 预设，填入你在 [火山方舟](https://www.volcengine.com/product/ark) 开通领取的 API Key（新用户送免费额度），把「文生图/图生图」通道切到它即可。豆包 Seedream 3.0 是当前质量最好、速度最快的免费可用模型，完胜一切开源免费模型。
 
 ---
 
